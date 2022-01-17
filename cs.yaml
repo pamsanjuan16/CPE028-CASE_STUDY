@@ -1,0 +1,142 @@
+---
+- name: AUTOMATION OF OSPF, ACCESS LIST & PAT FOR ROUTERS 1-3
+  hosts: routers
+  gather_facts: false
+  
+  vars:
+    cli:
+      username: cisco
+      password: cisco123!
+      timeout: 100
+      auth_pass: cisco
+
+  tasks:
+   - name: OSPF FOR ROUTER 1
+     when: ansible_host == "14.20.0.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - router-id 0.0.0.1 
+         - network 14.20.0.0 0.0.0.3 area 0 
+         - network 14.20.0.8 0.0.0.3 area 0
+         - default-information originate
+       parents: router ospf 10 
+
+   - name: OSPF FOR ROUTER 2
+     when: ansible_host == "172.16.1.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - router-id 0.0.0.2
+         - passive-interface f0/0
+         - passive-interface f0/1
+         - network 14.20.0.0 0.0.0.3 area 0 
+         - network 14.20.0.4 0.0.0.3 area 0 
+         - network 172.16.1.0 0.0.0.3 area 0 
+         - network 180.72.25.80 0.0.0.7 area 0 
+       parents: router ospf 10 
+
+   - name: OSPF FOR ROUTER 3
+     when: ansible_host == "14.20.0.6" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - router-id 0.0.0.3 
+         - passive-interface f0/0
+         - passive-interface f0/1
+         - network 14.20.0.8 0.0.0.3 area 0 
+         - network 14.20.0.4 0.0.0.3 area 0 
+         - network 180.72.25.0 0.0.0.63 area 0 
+         - network 180.72.25.64 0.0.0.15 area 0 
+       parents: router ospf 10 
+
+   - name: AUTHORIZE PERSON BOUNDARIES ACCESS LIST FOR R2
+     when: ansible_host == "172.16.1.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - deny 180.72.25.0 0.0.0.63 
+         - deny 180.72.25.64 0.0.0.15 
+         - permit any
+       parents: ip access-list standard AUTH_BOUND 
+   
+   - name: ACCESS GROUP CONFIG FOR F0/1 TO R2
+     when: ansible_host == "172.16.1.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - int f0/1
+         - ip access-group AUTH_BOUND out 
+
+   - name: ACCESS-LIST CONFIG OF PAT IN ROUTER 1
+     when: ansible_host == "14.20.0.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - access-list 1 permit 180.72.25.80 0.0.0.7 
+         - access-list 2 permit 172.16.1.0 0.0.0.3 
+
+   - name: PAT CONFIG FOR ROUTER 1
+     when: ansible_host == "14.20.0.1" 
+     ios_config:
+       provider: "{{ cli }}"
+       authorize: yes
+       lines: 
+         - ip nat pool LEVEL2_BOUND_POOL 190.195.25.1 190.195.25.2 netmask 255.255.255.252 
+         - ip nat pool LEVEL1_BOUND_POOL 190.195.25.1 190.195.25.2 netmask 255.255.255.252 
+         - ip nat inside source list 1 pool LEVEL2_BOUND_POOL overload 
+         - ip nat inside source list 2 pool LEVEL_BOUND_POOL overload 
+
+   - name: RUNNING-CONFIGURATION DISPLAY FOR ROUTER 1
+     when: ansible_host == "14.20.0.1"
+     ios_command:
+       provider: "{{ cli }}"
+       authorize: yes
+       commands:
+         - show run
+         - wr
+     register: config
+
+   - name: SAVE OUTPUT TO ./configuration_files/
+     when: ansible_host == "14.20.0.1" 
+     copy:
+       content: "{{ config.stdout[0] }}"
+       dest: "configuration_files/R1_Config.txt"
+
+   - name: RUNNING-CONFIGURATION DISPLAY FOR ROUTER 2
+     when: ansible_host == "172.16.1.1" 
+     ios_command:
+       provider: "{{ cli }}"
+       authorize: yes
+       commands:
+         - show run
+         - wr
+     register: config
+
+   - name: SAVE OUTPUT TO ./configuration_files/
+     when: ansible_host == "172.16.1.1" 
+     copy:
+       content: "{{ config.stdout[0] }}"
+       dest: "configuration_files/R2_Config.txt"
+
+   - name: RUNNING-CONFIGURATION DISPLAY FOR R3
+     when: ansible_host == "14.20.0.6" 
+     ios_command:
+       provider: "{{ cli }}"
+       authorize: yes
+       commands:
+         - show run
+         - wr
+     register: config
+
+   - name: SAVE OUTPUT TO ./configuration_files/
+     when: ansible_host == "14.20.0.6"
+     copy:
+       content: "{{ config.stdout[0] }}"
+       dest: "configuration_files/R3_Config.txt"

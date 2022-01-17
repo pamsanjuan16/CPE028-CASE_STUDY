@@ -1,0 +1,13 @@
+R1 ansible_host=14.20.0.1
+R2 ansible_host=172.16.1.1
+R3 ansible_host=14.20.0.6
+
+[routers]
+R1
+R2
+R3
+
+[routers:vars]
+ansible_user=cisco
+ansible_password=cisco123!
+ansible_connection=local
